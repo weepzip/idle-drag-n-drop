@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>Почта с тегами</title>
+  <meta charset='utf-8'>
+  <style>
+    .Page {
+      font-family: Arial;
+      font-size: 12px;
+      margin: 0;
+      padding: 0;
+      color: #2f2d33;
+    }
+    .Logo {
+      font-size: 24px;
+      padding: 12px;
+      margin: 0;
+    }
+    .Main {
+      display: flex;
+    }
+    .Tags {
+      width: 25%;
+      background-color: #fffae5;
+      padding: 6px;
+    }
+    .Tags_dropzone {
+      background-color: #ffedba;
+    }
+    .Tags_dragovered {
+      background-color: #ffd98e;
+    }
+    .Tags_dragovered * {
+      pointer-events: none;
+    }
+    .Tag {
+      background-color: #ffc062;
+      color: #592400;
+      margin: 6px;
+      padding: 6px;
+      display: inline-block;
+      user-select: none;
+      -moz-user-select: none;
+      -khtml-user-select: none;
+      cursor: pointer;
+      position: relative;
+      z-index: none;
+      left: 0;
+      top: 0;
+    }
+    .Tag_dragged {
+      background-color: #ff9100;
+      z-index: 1000;
+      position: absolute;
+    }
+    .Tag_removed {
+      display: none;
+    }
+    .Tag_shadow {
+      background-color: inherit;
+      color: white;
+      display: inline-flex;
+      justify-content: center;
+      align-content: center;
+      border: dashed 2px white;
+      width: 50px;
+      padding: 0;
+      font-weight: 900;
+      font-size: 1.1rem;
+    }
+    .Letters {
+      width: 100%;
+      background-color: #91cfff;
+    }
+    .Letters_dropzone {
+      width: 100%;
+      background-color: #4da0ff;
+    }
+    .Letter {
+      display: flex;
+      flex-wrap: wrap;
+      color: #00244d;
+    }
+    .Letter_dragovered {
+      background-color: #0050ac;
+    }
+    .Letter_dragovered * {
+      pointer-events: none;
+    }
+    .Letter__Title {
+      margin: 12px;
+    }
+  </style>
+  </head>
+  <body class="Page">
+    <script>
+        let data = window.data || {
+        tags: {
+          '1': 'важное',
+          '2': 'личное',
+          '3': 'рабочее',
+          '4': 'Проект X',
+          '5': 'Проект Y'
+        },
+        letters: [
+          {
+            id: '1',
+            title: 'Приглашение на день рождения',
+            tags: ['1', '2']
+          },
+          {
+            id: '2',
+            title: 'Ответ на ваш комментарий',
+            tags: ['2']
+          },
+          {
+            id: '3',
+            title: 'Резюме последней встречи про X',
+            tags: ['3', '4']
+          },
+          {
+            id: '4',
+            title: 'Расчётный лист',
+            tags: ['1', '3']
+          },
+          {
+            id: '5',
+            title: 'Нужна помощь с Y',
+            tags: ['3', '5']
+          },
+          {
+            id: '6',
+            title: 'Регулярная рассылка для клиентов',
+            tags: []
+          }
+        ]
+      }
+
+      function mapAndJoin(a, f, s = '') { return a.map(f).join(s) }
+      function buildHtml(data) {
+        return `
+          <div class="Main">
+            <div class="Tags">
+              ${mapAndJoin(
+                Object.entries(data.tags),
+                ([id, title]) => buildTagHtml(id, title))}
+            </div>
+            <div class="Letters">
+              ${mapAndJoin(
+                data.letters,
+                ({ id, title, tags }) => `
+                  <div class="Letter" data-letter-id="${id}">
+                    <div class="Letter__Title">${title}</div>
+                    ${mapAndJoin(tags, (l) => buildTagHtml(l, data.tags[l]))}
+                  </div>
+                `)}
+            </div>
+          </div>
+        `
+      }
+      function buildTagHtml(id, title) {
+        return `<div class="Tag" data-tag-id="${id}">${title}</div>`
+      }
+      document.body.innerHTML = buildHtml(data);
+
+      document.querySelectorAll('.Tag').forEach(elem => {
+        elem.onmousedown = (e) => {
+          if (e.which != 1) return;
+          elem.ondragstart = function() {return false};
+
+          let parent = elem.parentElement;
+          let elemsBelow = [];
+          let letters = document.querySelectorAll('.Letter');
+          let tagCont = document.querySelector('.Tags');
+          let lettersCont = document.querySelector('.Letters');
+          let coords = getCoords(elem);
+
+          shiftX = e.pageX - coords.left;
+          shiftY = e.pageY - coords.top;
+          elem.style.left = e.pageX - shiftX + 'px';
+          elem.style.top = e.pageY - shiftY + 'px';
+          elem.classList.add('Tag_dragged');
+          document.body.append(elem);
+
+          if(parent.className === "Letter" && tagCont) tagCont.classList.add('Tags_dropzone');
+          if (lettersCont) lettersCont.classList.add('Letters_dropzone');
+
+          document.onmousemove = (e) => {
+            moveAt(e);
+            elem.hidden = true;
+            elemsBelow = document.elementsFromPoint(e.pageX, e.pageY);
+
+            if (elemsBelow.includes(tagCont)) tagCont.classList.add('Tags_dragovered')
+            else tagCont.classList.remove('Tags_dragovered');
+
+            if (elemsBelow.includes(tagCont) && !tagCont.querySelector('div.Tag.Tag_shadow')) {
+                tagCont.append( createShadowTag() );
+            } else if (!elemsBelow.includes(tagCont) && tagCont.querySelector('div.Tag.Tag_shadow')) {
+              [...document.querySelectorAll('div.Tag.Tag_shadow')].forEach(elem => elem.remove());
+            };
+
+            letters.forEach(letter => {
+              if (elemsBelow.includes(letter)) letter.classList.add('Letter_dragovered')
+              else letter.classList.remove('Letter_dragovered');
+            });
+
+            letters.forEach(letter => {
+              if (elemsBelow.includes(letter) && !letter.querySelector('div.Tag.Tag_shadow')) {
+                letter.append( createShadowTag() );
+              } else if (!elemsBelow.includes(letter) && letter.querySelector('div.Tag.Tag_shadow')) {
+                [...document.querySelectorAll('div.Tag.Tag_shadow')].forEach(elem => elem.remove());
+              };
+            });
+
+            elem.hidden = false;
+          }
+
+          const moveAt = (e) => {
+            elem.style.left = e.pageX - shiftX + 'px';
+            elem.style.top = e.pageY - shiftY + 'px';
+          }
+
+          document.onmouseup = (e) => {
+            let nextParent;
+            for (let elemBelow of elemsBelow) {
+              if (elemBelow.className && 
+                  (elemBelow.className.includes('Tags') || elemBelow.className.includes('Letter'))) {
+                nextParent = elemBelow;
+                break;
+              }
+            };
+            if (!nextParent) {
+              nextParent = parent;
+            };
+            elem.style.left = 0;
+            elem.style.top = 0;
+            elem.classList.remove('Tag_dragged');
+            nextParent.append(elem);
+
+            [...document.querySelectorAll('div.Tag.Tag_shadow')].forEach(elem => elem.remove());
+
+            if (lettersCont.className.includes('Letters_dropzone')) {
+              lettersCont.classList.remove('Letters_dropzone');
+            };
+            if (tagCont.className.includes('Tags_dropzone')) {
+              tagCont.classList.remove('Tags_dropzone');
+            };
+            if (tagCont.className.includes('Tags_dragovered')) {
+              tagCont.classList.remove('Tags_dragovered');
+            };
+
+            document.onmousemove = null;
+            elem.onmouseup = null;
+            letters.forEach(letter => {
+              if (letter.className.includes('Letter_dragovered')) {
+                letter.classList.remove('Letter_dragovered');
+              };
+            });
+          }
+        }
+      })
+
+      const createShadowTag = () => {
+        let shadowTag = document.createElement('div');
+        shadowTag.className = 'Tag Tag_shadow';
+        shadowTag.innerText = '+';
+        return shadowTag;
+      };
+
+      const getCoords = (elem) => {
+        return {
+          left: elem.getBoundingClientRect().left + pageYOffset,
+          top: elem.getBoundingClientRect().top + pageXOffset,
+        }
+      };
+    </script>
+  </body>
+</html>
